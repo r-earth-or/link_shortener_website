@@ -3,8 +3,9 @@ import { ref } from 'vue'
 import axios from 'axios'
 let Long_Url = ref('')
 let Shorted_Url = ref('')
-let Display_All = ''
+let DisplayInformation = ref('')
 let Error_message = ref('')
+let Target_Url = ref('')
 axios.defaults.headers.post['Content-Type'] = 'application/json';
 axios.defaults.baseURL = 'http://localhost:8080';
 //shorten the url
@@ -22,6 +23,32 @@ function shortenUrl() {
     });
   } else {
     Error_message.value = 'Please input a valid URL.';
+  }
+}
+//display all information
+function displayAll() {
+  axios.get(`/api/logs?target=all`).then(response => {
+    console.log(response.data);
+    DisplayInformation.value = response.data;
+  }).catch(error => {
+    console.log(error);
+  });
+}
+function displayTargetInfomation() {
+  axios.get(`/api/logs?target=${isShortedUrl(Target_Url.value)}`).then(response => {
+    console.log(response.data);
+    DisplayInformation.value = response.data;
+  }).catch(error => {
+    console.log(error);
+  });
+}
+//check if the url is shorted
+function isShortedUrl(str) {
+  let pattern = new RegExp('^' + axios.defaults.baseURL + '/[a-zA-Z0-9]{6}$');
+  if (pattern.test(str)) {
+    return str.slice(-6);
+  } else {
+    return str;
   }
 }
 //check if the url is valid
@@ -50,8 +77,10 @@ function isUrl(str) {
     <p v-if="Error_message">{{Error_message}}</p>
     <a :href="Shorted_Url" v-if="Shorted_Url">shortened url:{{Shorted_Url}}</a>
     <p></p>
-    <button>display all information</button>
-    <p v-if="Display_All">all information:{{Display_All}}</p>
+    <button @click="displayAll">display all information</button>
+    <input v-model="Target_Url" placeholder="Target Url">
+    <button @click="displayTargetInfomation">display target information</button>
+    <p v-if="DisplayInformation">all information:{{ DisplayInformation }}</p>
   </main>
 </template>
 
