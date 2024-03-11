@@ -7,6 +7,10 @@ let Shorted_Url = ref('');
 let DisplayInformation = ref('');
 let Error_message = ref('');
 let Target_Url = ref('');
+/**
+ * @typedef {Object} ResponseData
+ * @property {string} shortUrl
+ */
 
 axios.defaults.headers.post['Content-Type'] = 'application/json';
 axios.defaults.baseURL = 'http://localhost:8080';
@@ -27,7 +31,13 @@ function shortenUrl() {
 
 function displayAll() {
   axios.get(`/api/logs?target=all`).then(response => {
-    DisplayInformation.value = JSON.stringify(response.data, null, 2);
+    const data = response.data.map(item => ({
+      ...item,
+      expire_at: convertToShanghaiTime(item.expire_at),
+      creat_at: convertToShanghaiTime(item.creat_at),
+      last_click_time: convertToShanghaiTime(item.last_click_time)
+    }));
+    DisplayInformation.value = JSON.stringify(data, null, 2);
   }).catch(error => {
     Error_message.value = error.message;
   });
@@ -35,12 +45,20 @@ function displayAll() {
 
 function displayTargetInformation() {
   const shortUrl = isShortedUrl(Target_Url.value);
-    axios.get(`/api/logs?target=${shortUrl}`).then(response => {
-      DisplayInformation.value = JSON.stringify(response.data, null, 2);
-    }).catch(error => {
-      Error_message.value = error.message;
-    });
+  axios.get(`/api/logs?target=${shortUrl}`).then(response => {
+    const data = Array.isArray(response.data) ? response.data : [response.data];
+    const formattedData = data.map(item => ({
+      ...item,
+      expire_at: convertToShanghaiTime(item.expire_at),
+      creat_at: convertToShanghaiTime(item.creat_at),
+      last_click_time: convertToShanghaiTime(item.last_click_time)
+    }));
+    DisplayInformation.value = JSON.stringify(formattedData, null, 2);
+  }).catch(error => {
+    Error_message.value = error.message;
+  });
 }
+
 
 function isShortedUrl(str) {
   let pattern = new RegExp('^' + axios.defaults.baseURL.replace(/https?:\/\//, '') + '/[a-zA-Z0-9]{6}$');
@@ -66,7 +84,13 @@ const parsedDisplayInformation = computed(() => {
     return []; // 如果无法解析为JSON，则返回空数组
   }
 });
+function convertToShanghaiTime(unixTimestamp) {
+  const date = new Date(unixTimestamp * 1000);
+  return date.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' });
+}
+
 </script>
+
 
 <template>
   <header>
@@ -75,13 +99,12 @@ const parsedDisplayInformation = computed(() => {
 
   <main>
     <p>Please input the URL you need to shorten:</p>
-    <input v-model="Long_Url" placeholder="Origin URL">
+    <el-input v-model="Long_Url" placeholder="Origin URL"></el-input>
     <el-button type="primary" @click="shortenUrl">Shorten</el-button>
-    <div v-if="Error_message">{{ Error_message }}</div>
     <el-link :href="Shorted_Url" v-if="Shorted_Url">Shortened URL: {{ Shorted_Url }}</el-link>
     <p></p>
     <el-button type="primary" @click="displayAll">Display All Information</el-button>
-    <input v-model="Target_Url" placeholder="Target URL">
+    <el-input v-model="Target_Url" placeholder="Target URL"></el-input>
     <el-button type="primary" @click="displayTargetInformation">Display Target Information</el-button>
 
     <!-- Display information using Element Plus table -->
@@ -94,6 +117,7 @@ const parsedDisplayInformation = computed(() => {
       <el-table-column prop="clicks" label="Clicks"></el-table-column>
       <el-table-column prop="last_click_time" label="Last Click Time"></el-table-column>
     </el-table>
+    <div v-if="Error_message">{{ Error_message }}</div>
   </main>
 </template>
 
