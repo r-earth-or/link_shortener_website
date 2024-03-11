@@ -1,86 +1,99 @@
 <script setup>
-import { ref } from 'vue'
-import axios from 'axios'
-let Long_Url = ref('')
-let Shorted_Url = ref('')
-let DisplayInformation = ref('')
-let Error_message = ref('')
-let Target_Url = ref('')
+import {computed, ref} from 'vue';
+import axios from 'axios';
+
+let Long_Url = ref('');
+let Shorted_Url = ref('');
+let DisplayInformation = ref('');
+let Error_message = ref('');
+let Target_Url = ref('');
+
 axios.defaults.headers.post['Content-Type'] = 'application/json';
 axios.defaults.baseURL = 'http://localhost:8080';
-//shorten the url
+
 function shortenUrl() {
   if (isUrl(Long_Url.value)) {
     Error_message.value = '';
-    // Post the URL to the http://localhost:8080/api/links, and get the shortened URL
     axios.post(`/api/links?longUrl=${Long_Url.value}`).then(response => {
       console.log(response.data);
-      // 注意这里修正了URL的构建方式
-      Shorted_Url.value = axios.defaults.baseURL +"/"+response.data.shortUrl;
+      Shorted_Url.value = axios.defaults.baseURL + "/" + response.data.shortUrl;
     }).catch(error => {
-      // 这里你可以考虑使用 error.message 获取更具体的错误信息
       Error_message.value = error.message;
     });
   } else {
     Error_message.value = 'Please input a valid URL.';
   }
 }
-//display all information
+
 function displayAll() {
   axios.get(`/api/logs?target=all`).then(response => {
-    console.log(response.data);
-    DisplayInformation.value = response.data;
+    DisplayInformation.value = JSON.stringify(response.data, null, 2);
   }).catch(error => {
-    console.log(error);
+    Error_message.value = error.message;
   });
-}
-function displayTargetInfomation() {
-  axios.get(`/api/logs?target=${isShortedUrl(Target_Url.value)}`).then(response => {
-    console.log(response.data);
-    DisplayInformation.value = response.data;
-  }).catch(error => {
-    console.log(error);
-  });
-}
-//check if the url is shorted
-function isShortedUrl(str) {
-  let pattern = new RegExp('^' + axios.defaults.baseURL + '/[a-zA-Z0-9]{6}$');
-  if (pattern.test(str)) {
-    return str.slice(-6);
-  } else {
-    return str;
-  }
-}
-//check if the url is valid
-function isUrl(str) {
-  let pattern = new RegExp('^(https?:\\/\\/)?'+ // protocol
-    '((([a-z\\d]([a-z\\d-]*[a-z\\d])*)\\.)+[a-z]{2,}|'+ // domain name
-    '((\\d{1,3}\\.){3}\\d{1,3}))'+ // OR ip (v4) address
-    '(\\:\\d+)?(\\/[-a-z\\d%_.~+]*)*'+ // port and path
-    '(\\?[;&a-z\\d%_.~+=-]*)?'+ // query string
-    '(\\#[-a-z\\d_]*)?$','i'); // fragment locator
-  return !!pattern.test(str);
 }
 
+function displayTargetInformation() {
+  const shortUrl = isShortedUrl(Target_Url.value);
+    axios.get(`/api/logs?target=${shortUrl}`).then(response => {
+      DisplayInformation.value = JSON.stringify(response.data, null, 2);
+    }).catch(error => {
+      Error_message.value = error.message;
+    });
+}
+
+function isShortedUrl(str) {
+  let pattern = new RegExp('^' + axios.defaults.baseURL.replace(/https?:\/\//, '') + '/[a-zA-Z0-9]{6}$');
+  if (pattern.test(str)) {
+    return str.slice(-6);
+  }
+  return str;
+}
+
+function isUrl(str) {
+  let pattern = new RegExp('^(https?:\\/\\/)?'+ // protocol
+      '(([a-zA-Z\\d]([a-zA-Z\\d-]*[a-zA-Z\\d])*)\\.)+[a-zA-Z]{2,}' + // domain name and TLD
+      '(\\:\\d+)?(\\/[-a-zA-Z\\d%_.~+]*)*'+ // port and path
+      '(\\?[;&a-zA-Z\\d%_.~+=-]*)?'+ // query string
+      '(\\#[-a-zA-Z\\d_]*)?$','i'); // fragment locator
+  return pattern.test(str);
+}
+
+const parsedDisplayInformation = computed(() => {
+  try {
+    return JSON.parse(DisplayInformation.value);
+  } catch (e) {
+    return []; // 如果无法解析为JSON，则返回空数组
+  }
+});
 </script>
 
 <template>
   <header>
     <img alt="Vue logo" class="logo" src="./assets/logo.svg" width="125" height="125" />
-
   </header>
 
   <main>
-    <p>please input the url you need to shortener</p>
-    <input v-model="Long_Url" placeholder="origin url">
-    <button @click="shortenUrl">shorten</button>
-    <p v-if="Error_message">{{Error_message}}</p>
-    <a :href="Shorted_Url" v-if="Shorted_Url">shortened url:{{Shorted_Url}}</a>
+    <p>Please input the URL you need to shorten:</p>
+    <input v-model="Long_Url" placeholder="Origin URL">
+    <el-button type="primary" @click="shortenUrl">Shorten</el-button>
+    <div v-if="Error_message">{{ Error_message }}</div>
+    <el-link :href="Shorted_Url" v-if="Shorted_Url">Shortened URL: {{ Shorted_Url }}</el-link>
     <p></p>
-    <button @click="displayAll">display all information</button>
-    <input v-model="Target_Url" placeholder="Target Url">
-    <button @click="displayTargetInfomation">display target information</button>
-    <p v-if="DisplayInformation">all information:{{ DisplayInformation }}</p>
+    <el-button type="primary" @click="displayAll">Display All Information</el-button>
+    <input v-model="Target_Url" placeholder="Target URL">
+    <el-button type="primary" @click="displayTargetInformation">Display Target Information</el-button>
+
+    <!-- Display information using Element Plus table -->
+    <el-table :data="parsedDisplayInformation" style="width: 100%" v-if="DisplayInformation">
+      <el-table-column prop="id" label="ID" width="80"></el-table-column>
+      <el-table-column prop="origin_url" label="Original URL"></el-table-column>
+      <el-table-column prop="short_url" label="Short URL"></el-table-column>
+      <el-table-column prop="expire_at" label="Expire At"></el-table-column>
+      <el-table-column prop="creat_at" label="Created At"></el-table-column>
+      <el-table-column prop="clicks" label="Clicks"></el-table-column>
+      <el-table-column prop="last_click_time" label="Last Click Time"></el-table-column>
+    </el-table>
   </main>
 </template>
 
@@ -105,10 +118,6 @@ header {
     margin: 0 2rem 0 0;
   }
 
-  header .wrapper {
-    display: flex;
-    place-items: flex-start;
-    flex-wrap: wrap;
-  }
+
 }
 </style>
